@@ -3,6 +3,7 @@ package com.example.stephen.movietime;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -12,8 +13,13 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.DisplayMetrics;
+import android.view.Display;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Toast;
+
 import com.example.stephen.movietime.data.Contract;
 import org.json.JSONException;
 import java.io.IOException;
@@ -33,11 +39,14 @@ public class MainActivity extends AppCompatActivity implements
     public RecyclerView mRecyclerView;
     RecyclerView.LayoutManager mLayoutManager;
     Parcelable mListState;
+    public List<String> mPosterPaths;
 
     public final int PREFERENCE_POPULAR = 0;
     public final int PREFERENCE_TOP_RATED = 1;
     public final int PREFERENCE_FAVORITES = 2;
     public final String LIST_STATE_KEY = "key";
+    private static final String SAVED_SUPER_STATE = "super-state";
+    private static final String SAVED_LAYOUT_MANAGER = "layout-manager-state";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +54,10 @@ public class MainActivity extends AppCompatActivity implements
         setContentView(R.layout.activity_main);
 
         mLayoutManager = new GridLayoutManager(this, 2);
+
+        mRecyclerView = findViewById(R.id.rvPosters);
+        mRecyclerView.setLayoutManager(mLayoutManager);
+
         /*  The user's preference for movie sorting is
             stored as an 'int' in sharedPreferences:
             rating (0), popular (1), or saved favorites (2)*/
@@ -65,17 +78,21 @@ public class MainActivity extends AppCompatActivity implements
         } else {
             //either no connection or preference is saved favorites movies
             setAdapter(query_db());
+            //if there is no connect tell the user
+            if (!is_connected()){
+                //get some strings
+                Resources res = getResources();
+                String error_message = res.getString(R.string.no_connectivity);
+                Toast.makeText(this, error_message, Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
     //takes a string of movie poster urls, and sets the adapter
     public void setAdapter(List<String> data) {
-        mRecyclerView = findViewById(R.id.rvPosters);
-        mRecyclerView.setLayoutManager(mLayoutManager);
         mAdapter = new MyRecyclerViewAdapter(this, data);
         mAdapter.setClickListener(this);
         mRecyclerView.setAdapter(mAdapter);
-        if (mListState!=null) mLayoutManager.onRestoreInstanceState(mListState);
     }
 
     //is there an internet connection?
@@ -118,6 +135,7 @@ public class MainActivity extends AppCompatActivity implements
             setAdapter(data);
             //make the data public (it may be passed to the DetailActivity activity, if user input)
             mJsonString = tmdbData;
+            mPosterPaths = data;
         }
     }
 
@@ -131,37 +149,47 @@ public class MainActivity extends AppCompatActivity implements
             String movie_json = mCursor.getString(mCursor.getColumnIndex(Contract.listEntry.COLUMN_MOVIE_JSON));
             int id = mCursor.getInt(mCursor.getColumnIndex(Contract.listEntry._ID));
             toDetail.putExtra("movie_json", movie_json);
-            toDetail.putExtra("came_from", "favorites");
         } else {
             String individual_movie_json = JsonUtils.parseIndividualMovie(mJsonString, position);
             toDetail.putExtra("movie_json", individual_movie_json);
-            toDetail.putExtra("came_from", "tmdb_movies");
+
         }
+        /* Put the poster path in the intent. This will be used in the
+           DetailActivity to see if the movie is already in the database.
+         */
+        toDetail.putExtra("poster_path", mPosterPaths.get(position));
         startActivity(toDetail);
     }
 
-
+    //-----------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------
     //from https://stackoverflow.com/questions/28236390/recyclerview-store-restore-state-between-activities
+    @Override
     protected void onSaveInstanceState(Bundle state) {
-        super.onSaveInstanceState(state);
         // Save list state
         mListState = mLayoutManager.onSaveInstanceState();
         state.putParcelable(LIST_STATE_KEY, mListState);
+
+        //View view = this.findViewById(android.R.id.content);
+        //int position = mRecyclerView.getChildLayoutPosition(view);
+        //Toast.makeText(this, "on restore instance state"+position, Toast.LENGTH_SHORT).show();
+        super.onSaveInstanceState(state);
     }
+    @Override
     protected void onRestoreInstanceState(Bundle state) {
         super.onRestoreInstanceState(state);
 
         // Retrieve list state and list/item positions
         if(state != null)
             mListState = state.getParcelable(LIST_STATE_KEY);
-    }
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (mListState != null) {
             mLayoutManager.onRestoreInstanceState(mListState);
-        }
+
+            //Toast.makeText(this, "on restore instance state", Toast.LENGTH_SHORT).show();
     }
+    //-----------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------------------------
 
     //returns a Cursor for all the saved favorite movies in the database
     private Cursor getAllMovies() {
@@ -183,6 +211,7 @@ public class MainActivity extends AppCompatActivity implements
             //add the poster path to the list
             poster_urls.add(poster_path);
         }
+        mPosterPaths = poster_urls;
         return poster_urls;
     }
 

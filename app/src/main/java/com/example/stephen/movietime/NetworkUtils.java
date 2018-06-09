@@ -16,14 +16,10 @@ class NetworkUtils {
         String BASE_URL = null;
         // {0:sort by popular, 1:sort by rating}
         if (user_preference == 0) {
-            BASE_URL = "https://api.themoviedb.org/3/discover/movie?" +
-                    api_key +
-                    "&language=en-US/movie/popular";
+            BASE_URL = "https://api.themoviedb.org/3/movie/popular?" + api_key;
         }
         if (user_preference == 1) {
-            BASE_URL = "https://api.themoviedb.org/3/discover/movie?" +
-                    api_key +
-                    "&language=en-US/movie/top_rated";
+            BASE_URL = "https://api.themoviedb.org/3/movie/top_rated?" + api_key;
         }
         URL url = null;
         try {
