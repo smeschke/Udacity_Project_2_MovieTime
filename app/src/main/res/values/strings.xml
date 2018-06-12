@@ -10,7 +10,7 @@
     <string name="detail_trailer_image_view">Trailer from selected movie.</string>
     <string name="movie_poster_image_view">Movie Poster</string>
     <string name="api_key" tools:keep="@string/api_key">api_key=594110145ddb52aad415dec046673010</string>
-    <string name="poster_url_prefix">http://image.tmdb.org/t/p/w</string>
+    <string name="poster_url_prefix">http://image.tmdb.org/t/p/w342</string>
     <string name="switch_to_popular">Switch to Popular Movies</string>
     <string name="switch_to_highest_rated">Switch to Highest Rated Movies</string>
     <string name="switch_to_favorites">Switch to Favorite Movies</string>

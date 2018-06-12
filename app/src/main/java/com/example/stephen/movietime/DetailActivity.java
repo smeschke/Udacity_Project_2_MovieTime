@@ -22,6 +22,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.ViewUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -124,11 +125,10 @@ public class DetailActivity extends AppCompatActivity {
         movie_json = fromMainActivity.getStringExtra("movie_json");
         mMoviePosterPath = fromMainActivity.getStringExtra("poster_path");
 
-
         //populate the views
         List<String> movie_details_list = null;
         //load the post image (automatically cached earlier)
-        Picasso.with(getApplicationContext()).load(url_string + ViewUtils.get_width() + mMoviePosterPath).error(R.drawable.error).into(posterImageView);
+        Picasso.with(getApplicationContext()).load(url_string + mMoviePosterPath).error(R.drawable.error).into(posterImageView);
 
         if (movie_is_already_in_db(mMoviePosterPath)) {
             Toast.makeText(this, "Viewing Details from DB", Toast.LENGTH_SHORT).show();
@@ -214,7 +214,6 @@ public class DetailActivity extends AppCompatActivity {
                         Contract.listEntry.COLUMN_MOVIE_ID)));
                 movie_details.add(mCursor.getString(mCursor.getColumnIndex(
                         Contract.listEntry.COLUMN_MOVIE_REVIEWS)));
-
             }
         }
         return movie_details;

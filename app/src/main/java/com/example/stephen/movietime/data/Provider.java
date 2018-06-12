@@ -53,6 +53,8 @@ public class Provider extends ContentProvider {
     @Override
     public Cursor query(@NonNull Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
+        /* What! Is something missing? Where is the URIMatcher?
+        *  There is no URIMatcher, because the whole DB is returned every time.*/
         // access db
         final SQLiteDatabase db = mTaskDbHelper.getReadableDatabase();
         // query database

@@ -1,12 +1,16 @@
 package com.example.stephen.movietime;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.ViewUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+
+import com.example.stephen.movietime.data.Contract;
 import com.squareup.picasso.Picasso;
 
 import java.util.List;
@@ -21,9 +25,11 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     private List<String> mData;
     private final LayoutInflater mInflater;
     private final Context mContext;
-    MyRecyclerViewAdapter(Context context, List<String> data){
+
+    // Create MyRecyclerViewAdapter
+    MyRecyclerViewAdapter(Context context){
         this.mInflater = LayoutInflater.from(context);
-        this.mData = data;
+        //this.mData = data;
         this.mContext = context;
     }
 
@@ -40,7 +46,7 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         //get url for poster
         String url_suffix = mData.get(position);
-        String url_string = "http://image.tmdb.org/t/p/w"+ViewUtils.get_width() + "/" + url_suffix;
+        String url_string = "http://image.tmdb.org/t/p/w342/" + url_suffix;
         //set the image view using Picasso
         Picasso.with(mContext).load(url_string).into(holder.imageView);
     }
@@ -48,6 +54,12 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     @Override
     public int getItemCount() {
         return mData.size();
+    }
+
+    // TODO (6) create swap cursor method to reset the data
+    void swapCursor(List<String> data) {
+        mData = data;
+        notifyDataSetChanged();
     }
 
     //TODO (1) create ViewHolder class - implement OnClickListener
