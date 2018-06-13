@@ -72,16 +72,6 @@
             app:layout_constraintTop_toBottomOf="@id/title" />
 
         <TextView
-            android:id="@+id/runtime_text_view"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="@dimen/text_margin"
-            android:layout_marginTop="@dimen/text_margin"
-            android:textSize="@dimen/heading2_size"
-            app:layout_constraintLeft_toRightOf="@id/guideline"
-            app:layout_constraintTop_toBottomOf="@id/release_date" />
-
-        <TextView
             android:id="@+id/rating"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -90,7 +80,7 @@
             android:textSize="@dimen/heading2_size"
             android:textStyle="bold"
             app:layout_constraintLeft_toRightOf="@id/guideline"
-            app:layout_constraintTop_toBottomOf="@+id/runtime_text_view" />
+            app:layout_constraintTop_toBottomOf="@+id/release_date" />
 
         <Button
             android:id="@+id/save_for_later_button"

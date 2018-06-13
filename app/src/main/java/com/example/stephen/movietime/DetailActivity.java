@@ -1,14 +1,4 @@
 package com.example.stephen.movietime;
-/*
-When a user selects a movie in the MainActivity,
-the user is sent to the detail activity by an intent.
-The the intent the following information is packaged:
-1) movie_id - this is the TMDB id for the movie
-    movie_id is -1 if the user is coming from 'popular' or 'highest rated' movies
-    movie_id is the TMDB id if the user is coming from favorites
-2) movie_json - this is the json for the movie
-    movie_json will be -1 if the user is coming from saved favorites
-*/
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -16,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -32,7 +23,9 @@ import android.widget.Toast;
 import com.example.stephen.movietime.data.Contract;
 import com.squareup.picasso.Picasso;
 
+import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.URL;
@@ -41,8 +34,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class DetailActivity extends AppCompatActivity {
-    //create a string for the movie parameters (title, release_date, plot_overview, etc...)
-    private String[] params;
     //string for the url of the poster
     public String url_string;
     //public string for the movie_json (gets passed to the db)
@@ -62,21 +53,17 @@ public class DetailActivity extends AppCompatActivity {
     public String mMovieId;
     public String mMoviePosterPath;
     public String mMovieReviews;
-    public boolean mMovieHasBeenRemovedFromDb = false;
-
-    public final int PREFERENCE_POPULAR = 0;
-    public final int PREFERENCE_TOP_RATED = 1;
-    public final int PREFERENCE_FAVORITES = 2;
-    public final String LIST_STATE_KEY = "key";
+    public String mMovieIsFavorite;
+    public String mMovieCategory;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_detail);
 
+
         //get some strings
         Resources res = getResources();
-        params = res.getStringArray(R.array.params);
         url_string = res.getString(R.string.poster_url_prefix);
         mMovieAddedMessage = res.getString(R.string.movie_added);
         mMovieRemovedMessage = res.getString(R.string.movie_removed);
@@ -122,57 +109,25 @@ public class DetailActivity extends AppCompatActivity {
 
         //get the movie, and the movie data from the intent
         Intent fromMainActivity = getIntent();
-        movie_json = fromMainActivity.getStringExtra("movie_json");
+        //poster_path, title, plot, rating, released, movie_id
         mMoviePosterPath = fromMainActivity.getStringExtra("poster_path");
+        mMovieTitle = fromMainActivity.getStringExtra("title");
+        mMoviePlot = fromMainActivity.getStringExtra("plot");
+        mMovieRating = fromMainActivity.getStringExtra("rating");
+        mMovieReleased = fromMainActivity.getStringExtra("released");
+        mMovieId = fromMainActivity.getStringExtra("movie_id");
+        mMovieIsFavorite = fromMainActivity.getStringExtra("isFavorite");
+        mMovieCategory = fromMainActivity.getStringExtra("category");
 
-        //populate the views
-        List<String> movie_details_list = null;
+        if (mMovieIsFavorite.equals("no")) {
+            removeFromDbButton.setVisibility(View.INVISIBLE);
+        } else {
+            saveForLaterButton.setVisibility(View.INVISIBLE);
+        }
+
         //load the post image (automatically cached earlier)
         Picasso.with(getApplicationContext()).load(url_string + mMoviePosterPath).error(R.drawable.error).into(posterImageView);
 
-        if (movie_is_already_in_db(mMoviePosterPath)) {
-            Toast.makeText(this, "Viewing Details from DB", Toast.LENGTH_SHORT).show();
-            //the movie is already in the saved movies database
-            //query the database to find the movie details
-            movie_details_list = query_database_for_movie_details(mMoviePosterPath);
-
-            //hide the 'save' button
-            saveForLaterButton.setVisibility(View.INVISIBLE);
-            //if the movie is in the database,
-            //the reviews are also in the database, so use those
-            mMovieReviews = movie_details_list.get(6);
-            TextView reviewsTextView = findViewById(R.id.movie_reviews);
-            reviewsTextView.setText(mMovieReviews);
-
-        } else {
-            Toast.makeText(this, "Viewing Details fetched from internet.", Toast.LENGTH_SHORT).show();
-            //the movie is not in the saved movie database
-            //it is necessary to parse the json to find movie details
-            try {
-                movie_details_list = JsonUtils.parseDetailsFromMovie(movie_json, params);
-                //hide the 'remove from db' button
-                removeFromDbButton.setVisibility(View.INVISIBLE);
-                //else, the movie is not in the database,
-                //so the reviews will have to be fetched from the internet
-                URL review_url = NetworkUtils.buildReviewsUrl(movie_details_list.get(5));
-                new reviewsFetchTask().execute(review_url);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-
-        }
-
-        // Okay time for a refresher!
-        // Q: Where did this list of movie details (title, rating, etc...) come from?
-        // A: If the movie was in the DB, the details came from the DB,
-        //    if the movie was not in the DB, these details were parsed from some json
-        //    that was included in the intent the fromMainActivity.
-        mMovieTitle = movie_details_list.get(0);
-        mMovieReleased = movie_details_list.get(1).substring(0, 4);
-        mMovieRating = movie_details_list.get(2);
-        mMoviePlot = movie_details_list.get(3);
-        mMoviePosterPath = movie_details_list.get(4);
-        mMovieId = movie_details_list.get(5);
         //set the text views
         titleTextView.setText(mMovieTitle);
         releaseTextView.setText(mMovieReleased);
@@ -181,6 +136,8 @@ public class DetailActivity extends AppCompatActivity {
 
         //if there is an internet connect, load the trailers
         if (is_connected()) {
+            URL review_url = NetworkUtils.buildReviewsUrl(mMovieId);
+            new reviewsFetchTask().execute(review_url);
             URL trailer_url = NetworkUtils.buildTrailersUrl(mMovieId);
             new trailersFetchTask().execute(trailer_url);
         } else {
@@ -190,66 +147,52 @@ public class DetailActivity extends AppCompatActivity {
         }
     }
 
-    private List<String> query_database_for_movie_details(String mMoviePosterPath) {
-        ArrayList<String> movie_details = new ArrayList<>();
-        Cursor mCursor = getContentResolver().query(Contract.listEntry.CONTENT_URI,
-                null, null, null,
-                Contract.listEntry.COLUMN_TIMESTAMP);
-        for (int i = 0; i < mCursor.getCount(); i++) {
-            mCursor.moveToPosition(i);
-            String database_id = mCursor.getString(mCursor
-                    .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH));
-            if (database_id.equals(mMoviePosterPath)) {
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_TITLE)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_RELEASED)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_RATING)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_PLOT)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_POSTER_PATH)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_ID)));
-                movie_details.add(mCursor.getString(mCursor.getColumnIndex(
-                        Contract.listEntry.COLUMN_MOVIE_REVIEWS)));
-            }
-        }
-        return movie_details;
-    }
-
     //this method, called by a button click, removes the current movie from the database
     public void remove_from_db() {
         // Build uri with the movie json that needs to be deleted
         Uri uri = Contract.listEntry.CONTENT_URI;
         uri = uri.buildUpon().appendPath(mMovieId).build();
-        //delete single row
-        getContentResolver().delete(uri, null, null);
-        //tell the user that the movie has been removed from the saved favorites
-        Toast.makeText(this, mMovieTitle + " " + mMovieRemovedMessage, Toast.LENGTH_SHORT).show();
-        //change the visibility of the buttons
-        Button saveForLaterButton = findViewById(R.id.save_for_later_button);
-        saveForLaterButton.setVisibility(View.VISIBLE);
-        Button removeFromDbButton = findViewById(R.id.remove_button);
-        removeFromDbButton.setVisibility(View.INVISIBLE);
-        mMovieHasBeenRemovedFromDb = true;
-    }
-
-    //this method, called by a button click, saves the movie to the database
-    public void save_for_later() {
         //fill content values with movie attributes
         ContentValues cv = new ContentValues();
-        cv.put(Contract.listEntry.COLUMN_MOVIE_JSON, movie_json);
         cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
         cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
         cv.put(Contract.listEntry.COLUMN_MOVIE_RATING, mMovieRating);
         cv.put(Contract.listEntry.COLUMN_MOVIE_RELEASED, mMovieReleased);
         cv.put(Contract.listEntry.COLUMN_MOVIE_ID, mMovieId);
         cv.put(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH, mMoviePosterPath);
-        cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, mMovieReviews);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
+        cv.put(Contract.listEntry.COLUMN_CATEGORY, mMovieCategory);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
         //insert the content values via a ContentResolver
-        getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
+        getContentResolver().update(uri, cv, null, null);
+
+        //tell the user that movie has been saved to favorites
+        Toast.makeText(this, mMovieTitle + " " + mMovieAddedMessage, Toast.LENGTH_SHORT).show();
+        //change the visibility of the buttons
+        Button removeFromDbButton = findViewById(R.id.remove_button);
+        removeFromDbButton.setVisibility(View.INVISIBLE);
+        Button saveForLaterButton = findViewById(R.id.save_for_later_button);
+        saveForLaterButton.setVisibility(View.VISIBLE);
+    }
+
+    //this method, called by a button click, saves the movie to the database
+    public void save_for_later() {
+        // Build uri with the movie json that needs to be deleted
+        Uri uri = Contract.listEntry.CONTENT_URI;
+        uri = uri.buildUpon().appendPath(mMovieId).build();
+        //fill content values with movie attributes
+        ContentValues cv = new ContentValues();
+        cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_RATING, mMovieRating);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_RELEASED, mMovieReleased);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_ID, mMovieId);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH, mMoviePosterPath);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
+        cv.put(Contract.listEntry.COLUMN_CATEGORY, mMovieCategory);
+        cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "yes");
+        //insert the content values via a ContentResolver
+        getContentResolver().update(uri, cv, null, null);
         //tell the user that movie has been saved to favorites
         Toast.makeText(this, mMovieTitle + " " + mMovieAddedMessage, Toast.LENGTH_SHORT).show();
         //change the visibility of the buttons
@@ -279,13 +222,25 @@ public class DetailActivity extends AppCompatActivity {
         @Override
         protected void onPostExecute(String jsonReviewData) {
             TextView tv = findViewById(R.id.movie_reviews);
+            String review_string = "";
+            JSONObject jsonObject = null;
             try {
-                String properlyFormattedReviews = JsonUtils.parseReviews(jsonReviewData);
-                tv.setText(properlyFormattedReviews);
-                mMovieReviews = properlyFormattedReviews;
-            } catch (JSONException e) {
-                e.printStackTrace();
+                jsonObject = new JSONObject(jsonReviewData);
+
+                JSONArray results_array = jsonObject.getJSONArray("results");
+                //iterate through the movie list
+                for (int i = 0; i < results_array.length(); i++) {
+                    JSONObject individual_movie = results_array.getJSONObject(i);
+                    String author = individual_movie.getString("author");
+                    review_string += "Review by " + author + "\n\n";
+                    String content = individual_movie.getString("content");
+                    review_string += content + "\n\n\n";
+                }
+            } catch (Exception e) {
+                Toast.makeText(DetailActivity.this, "Error while fetching reviews.", Toast.LENGTH_SHORT).show();
             }
+            tv.setText(review_string);
+            mMovieReviews = review_string;
         }
     }
 
@@ -396,42 +351,5 @@ public class DetailActivity extends AppCompatActivity {
     public void hide_back() {
         Button right = findViewById(R.id.back_button);
         right.setVisibility(View.INVISIBLE);
-    }
-
-    //this method takes a movie id and returns whether or not the id is already in the db
-    public boolean movie_is_already_in_db(String movie_id) {
-        Cursor mCursor = getContentResolver().query(Contract.listEntry.CONTENT_URI,
-                null, null, null,
-                Contract.listEntry.COLUMN_TIMESTAMP);
-        boolean movieIsInDatabase = false;
-        for (int i = 0; i < mCursor.getCount(); i++) {
-            mCursor.moveToPosition(i);
-            String database_id = mCursor.getString(mCursor
-                    .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH));
-            if (database_id.equals(movie_id)) {
-                movieIsInDatabase = true;
-            }
-        }
-        return movieIsInDatabase;
-    }
-
-    //override the back button
-    @Override
-    public void onBackPressed() {
-        //if the user came from 'favorites'
-        SharedPreferences settings = getApplicationContext().
-                getSharedPreferences("LOG", PREFERENCE_POPULAR);
-        int user_preference = settings.getInt("pref", PREFERENCE_POPULAR);
-        if (mMovieHasBeenRemovedFromDb && user_preference == PREFERENCE_FAVORITES) {
-
-            //a movie has been removed from the database,
-            //so the favorites activity needs to be restarted
-            Intent redrawMainActivity = new Intent(DetailActivity.this, MainActivity.class);
-            startActivity(redrawMainActivity);
-
-        } else {
-            //no movie has been removed from the db, so just finish and go back to main
-            finish();
-        }
     }
 }

@@ -42,9 +42,8 @@ public class Contract {
                 .appendPath(PATH_MOVIES).build();
 
         public static final String TABLE_NAME = "mylist";
-        public static final String COLUMN_MOVIE_JSON = "movie_json";
         public static final String COLUMN_TIMESTAMP = "timestamp";
-
+        public static final String COLUMN_CATEGORY = "category";
         public static final String COLUMN_MOVIE_TITLE = "movie_title";
         public static final String COLUMN_MOVIE_PLOT = "movie_plot";
         public static final String COLUMN_MOVIE_ID = "movie_id";
@@ -52,5 +51,6 @@ public class Contract {
         public static final String COLUMN_MOVIE_RELEASED = "movie_released";
         public static final String COLUMN_MOVIE_REVIEWS = "movie_reviews";
         public static final String COLUMN_MOVIE_POSTER_PATH = "poster_path";
+        public static final String COLUMN_MOVIE_IS_FAVORITE = "favorite";
     }
 }

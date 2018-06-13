@@ -1,5 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">movietime</string>
+    <string name="fetch_from_internet">Data being fetched from the internet.</string>
+    <string name="fetch_from_db">Data being fetched from the DB.</string>
     <string name="no_connectivity">Your device is not connected to the internet.\nSaved favorite movies (not displayed) are available locally,\nplease connect to view top rated and popular movies.</string>
     <string name="no_reviews">There are no reviews for this movie.</string>
     <string name="movie_added"> has been added to saved favorites.</string>

@@ -74,22 +74,43 @@ public class Provider extends ContentProvider {
     // delete a single row of data
     @Override
     public int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
+        //create new int that describes the number of tasks deleted
+        int moviesDeleted = 0;
         // access db
         final SQLiteDatabase db = mTaskDbHelper.getWritableDatabase();
         // get movie_json
-        String movie_json = uri.getPathSegments().get(1);
-        int tasksDeleted = db.delete(TABLE_NAME,
-                "movie_id=?",
-                new String[]{movie_json});
+        String movie_id = uri.getPathSegments().get(1);
+        /* Movies from TMDB have a movie_id of more than 6 characters,
+           I need a 'delete all option', so instead of using a URI matcher,
+           I just pass a really short movie_id (<3) to delete all.
+         */
+        if (movie_id.length()<3) {
+            moviesDeleted = db.delete(TABLE_NAME,
+                    null,
+                    null);
+        }
+        else{
+            moviesDeleted = db.delete(TABLE_NAME,
+                    "movie_id=?",
+                    new String[]{movie_id});
+        }
         // return the number of tasks deleted
-        return tasksDeleted;
+        getContext().getContentResolver().notifyChange(uri, null);
+        return moviesDeleted;
     }
 
     //not used
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {
-        throw new UnsupportedOperationException("Not implemented");
+        final SQLiteDatabase db = mTaskDbHelper.getWritableDatabase();
+        String movie_id = uri.getPathSegments().get(1);
+        int moviesUpdated = db.update(TABLE_NAME,
+                values,
+                "movie_id=?",
+                new String[]{movie_id});
+        getContext().getContentResolver().notifyChange(uri, null);
+        return moviesUpdated;
     }
 
     //not used

@@ -1,12 +1,16 @@
 package com.example.stephen.movietime;
 
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Parcelable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.LoaderManager;
@@ -32,78 +36,228 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-//implement MyRecyclerView and clicks
+// Implement MyRecyclerView and clicks
 public class MainActivity extends AppCompatActivity implements
         LoaderManager.LoaderCallbacks<Cursor>,
         MyRecyclerViewAdapter.ItemClickListener {
 
-    //create a string of json to pass around
+    // Create a string of json to pass around
     public String mJsonString;
     public MyRecyclerViewAdapter mAdapter;
     public RecyclerView mRecyclerView;
     RecyclerView.LayoutManager mLayoutManager;
     public List<String> mPosterPaths;
     public int mUserPreference;
+    public Cursor mCursor;
 
     public final int PREFERENCE_POPULAR = 0;
     public final int PREFERENCE_TOP_RATED = 1;
     public final int PREFERENCE_FAVORITES = 2;
-    private static final int ID_MOVIE_LOADER = 44;
+    public final String LAST_UPDATE_KEY = "last_update";
+    public final int LAST_UPDATE_DEFAULT_VALUE = -1;
+    public final String LIST_STATE_KEY = "key";
+
+    Parcelable mListState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Get some strings
+        Resources res = getResources();
+        String no_connectivity_error_message = res.getString(R.string.no_connectivity);
+        String fetch_from_internet_message = res.getString(R.string.fetch_from_internet);
+        String fetch_from_db_message = res.getString(R.string.fetch_from_db);
+
+
+        // Check the last time the DB was updated
+        SharedPreferences settings = getApplicationContext().
+                getSharedPreferences("LOG", PREFERENCE_POPULAR);
+        int lastUpdate = settings.getInt(LAST_UPDATE_KEY, LAST_UPDATE_DEFAULT_VALUE);
+        /*  The user's preference for movie sorting is
+            stored as an 'int' in sharedPreferences:
+            rating (0), popular (1), or saved favorites (2).*/
+        mUserPreference = settings.getInt("pref", PREFERENCE_POPULAR);
+
+        //if the db hasn't been updated for awhile, update it
+        remove_from_db();
+        URL test = NetworkUtils.buildUrl(0);
+        new updateDbPopular().execute(test);
+        test = NetworkUtils.buildUrl(1);
+        new updateDbTopRated().execute(test);
+
         // Create layout manager and bind it to the recycler view
         mRecyclerView = findViewById(R.id.rvPosters);
         // Set the layout for the RecyclerView to be grid
-        //provided by reviewer in review
+        // Provided by reviewer in review
         int posterWidth = 342; // size in pixels (just a random size). You may use other values.
-        GridLayoutManager gridLayoutManager =
+        mLayoutManager =
                 new GridLayoutManager(this, calculateBestSpanCount(posterWidth));
-        //mLayoutManager = new GridLayoutManager(this, 2);
-        mLayoutManager = gridLayoutManager;
         mRecyclerView.setLayoutManager(mLayoutManager);
         // Initialize the adapter and attach it to the RecyclerView
         mAdapter = new MyRecyclerViewAdapter(this);
+        // Start listening for clicks
+        mAdapter.setClickListener(this);
+        // Set adapter to mRecyclerView
         mRecyclerView.setAdapter(mAdapter);
 
-
-        /*  The user's preference for movie sorting is
-            stored as an 'int' in sharedPreferences:
-            rating (0), popular (1), or saved favorites (2)*/
-        SharedPreferences settings = getApplicationContext().
-                getSharedPreferences("LOG", PREFERENCE_POPULAR);
-        mUserPreference = settings.getInt("pref", PREFERENCE_POPULAR);
-
-        //have to call getSupportLoaderManager to avoid crash
-        getSupportLoaderManager().initLoader(ID_MOVIE_LOADER, null, this);
-
-        //...make sure the app doesn't crash if there is not internet...
-        if (is_connected() && mUserPreference < PREFERENCE_FAVORITES) {
-            //get a url for either top rated, or most popular movies
-            URL tmdbUrl = NetworkUtils.buildUrl(mUserPreference);
-            //execute the data fetch task (this also displays the posters)
-            new dataFetchTask().execute(tmdbUrl);
-            // Tell the user that data is being fetched from the internet
-            Toast.makeText(this, "Data being fetched from internet. " + mUserPreference, Toast.LENGTH_SHORT).show();
-
-        } else {
-            //either no connection or preference is saved favorites movies
-            // Tell the user that data is being fetched from the internet
-            Toast.makeText(this, "Data being fetched from local DB. " + mUserPreference, Toast.LENGTH_SHORT).show();
-            // If there is no connect tell the user
-            if (!is_connected()) {
-                //get some strings
-                Resources res = getResources();
-                String error_message = res.getString(R.string.no_connectivity);
-                Toast.makeText(this, error_message, Toast.LENGTH_SHORT).show();
-            }
-        }
+        // Have to call getSupportLoaderManager to avoid crash
+        getSupportLoaderManager().initLoader(mUserPreference, null, this);
     } //end of on create
 
-    //provided in review by reviewer
+
+    //------------------------------Start of SaveInstance-------------------------------------------
+    //from https://stackoverflow.com/questions/28236390/recyclerview-store-restore-state-between-activities
+    protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+
+        // Save list state
+        mListState = mLayoutManager.onSaveInstanceState();
+        state.putParcelable(LIST_STATE_KEY, mListState);
+    }
+
+
+    protected void onRestoreInstanceState(Bundle state) {
+        super.onRestoreInstanceState(state);
+
+        // Retrieve list state and list/item positions
+        if(state != null)
+            mListState = state.getParcelable(LIST_STATE_KEY);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (mListState != null) {
+            mLayoutManager.onRestoreInstanceState(mListState);
+        }
+    }
+    //------------------------------End of SaveInstance-------------------------------------------
+
+
+    ////////////////////////////////// Start Update DB Task //////////////////////////////
+    // Fetches json, parses, and sets the adapter
+    class updateDbPopular extends AsyncTask<URL, Void, String> {
+        // Do in background gets the json from The Movie Database
+        @Override
+        protected String doInBackground(URL... urls) {
+            String fetchResults = null;
+            try {
+                fetchResults = NetworkUtils.getResponseFromHttpUrl(urls[0]);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //return the results to the onPostExecute method
+            return fetchResults;
+        }
+
+        // On post execute task displays the json data
+        @Override
+        protected void onPostExecute(String tmdbData) {
+            try {
+                // Iterate through each movie in the mJsonString
+                int num_movies = JsonUtils.getNumberOfMovies(tmdbData);
+
+                Resources res = getResources();
+                String[] params = res.getStringArray(R.array.params);
+
+                for (int movie_index = 0; movie_index < num_movies; movie_index++) {
+                    String movie_json = JsonUtils.parseIndividualMovie(tmdbData, movie_index);
+
+                    List<String> movie_details_list = JsonUtils.parseDetailsFromMovie(movie_json, params);
+                    String mMovieTitle = movie_details_list.get(0);
+                    String mMovieReleased = movie_details_list.get(1).substring(0, 4);
+                    String mMovieRating = movie_details_list.get(2);
+                    String mMoviePlot = movie_details_list.get(3);
+                    String mMoviePosterPath = movie_details_list.get(4);
+                    String mMovieId = movie_details_list.get(5);
+                    //fill content values with movie attributes
+                    ContentValues cv = new ContentValues();
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_RATING, mMovieRating);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_RELEASED, mMovieReleased);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_ID, mMovieId);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH, mMoviePosterPath);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
+                    cv.put(Contract.listEntry.COLUMN_CATEGORY, Integer.toString(PREFERENCE_POPULAR));
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
+                    //insert the content values via a ContentResolver
+                    getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    class updateDbTopRated extends AsyncTask<URL, Void, String> {
+        // Do in background gets the json from The Movie Database
+        @Override
+        protected String doInBackground(URL... urls) {
+            String fetchResults = null;
+            try {
+                fetchResults = NetworkUtils.getResponseFromHttpUrl(urls[0]);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //return the results to the onPostExecute method
+            return fetchResults;
+        }
+
+        // On post execute task displays the json data
+        @Override
+        protected void onPostExecute(String tmdbData) {
+            try {
+                // Iterate through each movie in the mJsonString
+                int num_movies = JsonUtils.getNumberOfMovies(tmdbData);
+
+                Resources res = getResources();
+                String[] params = res.getStringArray(R.array.params);
+
+                for (int movie_index = 0; movie_index < num_movies; movie_index++) {
+                    String movie_json = JsonUtils.parseIndividualMovie(tmdbData, movie_index);
+
+                    List<String> movie_details_list = JsonUtils.parseDetailsFromMovie(movie_json, params);
+                    String mMovieTitle = movie_details_list.get(0);
+                    String mMovieReleased = movie_details_list.get(1).substring(0, 4);
+                    String mMovieRating = movie_details_list.get(2);
+                    String mMoviePlot = movie_details_list.get(3);
+                    String mMoviePosterPath = movie_details_list.get(4);
+                    String mMovieId = movie_details_list.get(5);
+                    //fill content values with movie attributes
+                    ContentValues cv = new ContentValues();
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_RATING, mMovieRating);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_RELEASED, mMovieReleased);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_ID, mMovieId);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH, mMoviePosterPath);
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
+                    cv.put(Contract.listEntry.COLUMN_CATEGORY, Integer.toString(PREFERENCE_TOP_RATED));
+                    cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
+                    //insert the content values via a ContentResolver
+                    getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // Delete the movies that are going to be updated
+    public void remove_from_db() {
+        // Build uri with the movie json that needs to be deleted
+        Uri uri = Contract.listEntry.CONTENT_URI;
+        uri = uri.buildUpon().appendPath("1").build();
+        //delete single row
+        getContentResolver().delete(uri, null, null);
+    }
+    ////////////////////////////////// END Update DB Task //////////////////////////////
+
+    // Provided in review by reviewer
     private int calculateBestSpanCount(int posterWidth) {
         Display display = getWindowManager().getDefaultDisplay();
         DisplayMetrics outMetrics = new DisplayMetrics();
@@ -129,12 +283,32 @@ public class MainActivity extends AppCompatActivity implements
     @NonNull
     @Override
     public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
-        return new CursorLoader(this,
-                Contract.listEntry.CONTENT_URI,
-                null,
-                null,
-                null,
-                Contract.listEntry.COLUMN_TIMESTAMP);
+        if (id == PREFERENCE_TOP_RATED) {
+            return new CursorLoader(this,
+                    Contract.listEntry.CONTENT_URI,
+                    null,
+                    Contract.listEntry.COLUMN_CATEGORY + "=?",
+                    new String[]{Integer.toString(PREFERENCE_TOP_RATED)},
+                    Contract.listEntry.COLUMN_TIMESTAMP);
+        }
+        if (id == PREFERENCE_POPULAR) {
+            return new CursorLoader(this,
+                    Contract.listEntry.CONTENT_URI,
+                    null,
+                    Contract.listEntry.COLUMN_CATEGORY + "=?",
+                    new String[]{Integer.toString(PREFERENCE_POPULAR)},
+                    Contract.listEntry.COLUMN_TIMESTAMP);
+        }
+        if (id == PREFERENCE_FAVORITES) {
+            return new CursorLoader(this,
+                    Contract.listEntry.CONTENT_URI,
+                    null,
+                    Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE + "=?",
+                    new String[]{"yes"},
+                    Contract.listEntry.COLUMN_TIMESTAMP);
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -145,6 +319,7 @@ public class MainActivity extends AppCompatActivity implements
             movie_poster.add(data.getString(data.getColumnIndex(
                     Contract.listEntry.COLUMN_MOVIE_POSTER_PATH)));
         }
+        mCursor = data;
         mAdapter.swapCursor(movie_poster);
     }
 
@@ -152,74 +327,52 @@ public class MainActivity extends AppCompatActivity implements
     public void onLoaderReset(@NonNull Loader<Cursor> loader) {
         mAdapter.swapCursor(null);
     }
-    ////////////////////////////////////END CURSOR LOADER METHODS//////////////////////////////////
-
-    ///////////////////////////Start getDataFromInternet Task//////////////////////////////////////
-    //fetches json, parses, and sets the adapter
-    class dataFetchTask extends AsyncTask<URL, Void, String> {
-        //do in background gets the json from The Movie Database
-        @Override
-        protected String doInBackground(URL... urls) {
-            String fetchResults = null;
-            try {
-                fetchResults = NetworkUtils.getResponseFromHttpUrl(urls[0]);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            //return the results to the onPostExecute method
-            return fetchResults;
-        }
-
-        //on post execute task displays the json data
-        @Override
-        protected void onPostExecute(String tmdbData) {
-            List<String> data = null;
-            try {
-                data = JsonUtils.parseJson(tmdbData);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-            //set the adapter
-            mAdapter.swapCursor(data);
-            //make the data public (it may be passed to the DetailActivity activity, if user input)
-            mJsonString = tmdbData;
-            mPosterPaths = data;
-        }
-    }
-    ///////////////////////////End getDataFromInternet Task/////////////////////////////////////////
+////////////////////////////////////END CURSOR LOADER METHODS//////////////////////////////////
 
 
-    //on click method sends the user to the DetailActivity activity
+    // On click method sends the user to the DetailActivity activity
     @Override
     public void onItemClick(int position) {
-        /*Intent toDetail = new Intent(MainActivity.this, DetailActivity.class);
-        if (isFavorites) {
-            Cursor mCursor = getAllMovies();
-            mCursor.moveToPosition(position);
-            String movie_json = mCursor.getString(mCursor.getColumnIndex(Contract.listEntry.COLUMN_MOVIE_JSON));
-            int id = mCursor.getInt(mCursor.getColumnIndex(Contract.listEntry._ID));
-            toDetail.putExtra("movie_json", movie_json);
-        } else {
-            String individual_movie_json = JsonUtils.parseIndividualMovie(mJsonString, position);
-            toDetail.putExtra("movie_json", individual_movie_json);
-
-        }
-        *//* Put the poster path in the intent. This will be used in the
-           DetailActivity to see if the movie is already in the database.
-         *//*
-        toDetail.putExtra("poster_path", mPosterPaths.get(position));
-        startActivity(toDetail);*/
-        Toast.makeText(this, Integer.toString(position), Toast.LENGTH_SHORT).show();
+        Intent toDetail = new Intent(MainActivity.this, DetailActivity.class);
+        mCursor.moveToPosition(position);
+        String title = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_TITLE));
+        String plot = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_PLOT));
+        String rating = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_RATING));
+        String released = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_RELEASED));
+        String movie_id = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_ID));
+        String poster_path = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_POSTER_PATH));
+        String reviews = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_REVIEWS));
+        String isFavorite = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE));
+        String category = mCursor.getString(mCursor
+                .getColumnIndex(Contract.listEntry.COLUMN_CATEGORY));
+        toDetail.putExtra("poster_path", poster_path);
+        toDetail.putExtra("title", title);
+        toDetail.putExtra("plot", plot);
+        toDetail.putExtra("rating", rating);
+        toDetail.putExtra("released", released);
+        toDetail.putExtra("movie_id", movie_id);
+        toDetail.putExtra("reviews", reviews);
+        toDetail.putExtra("isFavorite", isFavorite);
+        toDetail.putExtra("category", category);
+        startActivity(toDetail);
     }
 
-    //this takes place of a proper settings activity
+    // This takes place of a proper settings activity
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
 
-    //this allows the user to switch between favorites, popular, or highest rated
+    // This allows the user to switch between favorites, popular, or highest rated
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemThatWasClickedId = item.getItemId();
@@ -229,18 +382,19 @@ public class MainActivity extends AppCompatActivity implements
         if (itemThatWasClickedId == R.id.action_popular) {
             editor.putInt("pref", PREFERENCE_POPULAR).commit();
             URL tmdbUrl = NetworkUtils.buildUrl(PREFERENCE_POPULAR);
-            //execute the data fetch task (this also displays the posters)
-            new dataFetchTask().execute(tmdbUrl);
+            // Execute the data fetch task (this also displays the posters)
+            getSupportLoaderManager().initLoader(PREFERENCE_POPULAR, null, this);
         }
         if (itemThatWasClickedId == R.id.action_rating) {
             editor.putInt("pref", PREFERENCE_TOP_RATED).commit();
             URL tmdbUrl = NetworkUtils.buildUrl(PREFERENCE_TOP_RATED);
-            //execute the data fetch task (this also displays the posters)
-            new dataFetchTask().execute(tmdbUrl);
+            // Execute the data fetch task (this also displays the posters)
+            getSupportLoaderManager().initLoader(PREFERENCE_TOP_RATED, null, this);
         }
         if (itemThatWasClickedId == R.id.action_favorites) {
             editor.putInt("pref", PREFERENCE_FAVORITES).commit();
-            getSupportLoaderManager().initLoader(ID_MOVIE_LOADER, null, this);
+            // Load the movies from the database
+            getSupportLoaderManager().initLoader(PREFERENCE_FAVORITES, null, this);
         }
         return super.onOptionsItemSelected(item);
     }

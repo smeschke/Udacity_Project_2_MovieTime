@@ -57,6 +57,7 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     }
 
     // TODO (6) create swap cursor method to reset the data
+    // This is really a 'swapListString', because I am not passing a cursor.
     void swapCursor(List<String> data) {
         mData = data;
         notifyDataSetChanged();

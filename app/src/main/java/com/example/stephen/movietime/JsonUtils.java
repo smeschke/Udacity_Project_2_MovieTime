@@ -30,6 +30,19 @@ public class JsonUtils {
     }
 
     /*
+    takes the big json string that contains all twenty movies,
+    and returns the length, which is always 20.
+    */
+    public static int getNumberOfMovies(String public_json_string) throws JSONException {
+        JSONObject jsonObject;
+        int json_lenth = -1;
+        jsonObject = new JSONObject(public_json_string);
+        JSONArray jsonArray = jsonObject.getJSONArray("results");
+        json_lenth = jsonArray.length();
+        return json_lenth;
+    }
+
+    /*
     Takes the big json string that contains all twenty movies,
     parses out one individual movie (which will be sent to the details page).
     This is called from the mainActivity
