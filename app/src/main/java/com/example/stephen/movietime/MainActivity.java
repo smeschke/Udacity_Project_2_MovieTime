@@ -42,11 +42,9 @@ public class MainActivity extends AppCompatActivity implements
         MyRecyclerViewAdapter.ItemClickListener {
 
     // Create a string of json to pass around
-    public String mJsonString;
     public MyRecyclerViewAdapter mAdapter;
     public RecyclerView mRecyclerView;
     RecyclerView.LayoutManager mLayoutManager;
-    public List<String> mPosterPaths;
     public int mUserPreference;
     public Cursor mCursor;
 
@@ -56,13 +54,14 @@ public class MainActivity extends AppCompatActivity implements
     public final String LAST_UPDATE_KEY = "last_update";
     public final int LAST_UPDATE_DEFAULT_VALUE = -1;
     public final String LIST_STATE_KEY = "key";
-
+    public final String PREFERENCE_KEY = "pref";
+    public final String LOG_KEY = "log";
     Parcelable mListState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main); //set to whatever layout name you have
 
         // Get some strings
         Resources res = getResources();
@@ -73,12 +72,12 @@ public class MainActivity extends AppCompatActivity implements
 
         // Check the last time the DB was updated
         SharedPreferences settings = getApplicationContext().
-                getSharedPreferences("LOG", PREFERENCE_POPULAR);
+                getSharedPreferences(LOG_KEY, PREFERENCE_POPULAR);
         int lastUpdate = settings.getInt(LAST_UPDATE_KEY, LAST_UPDATE_DEFAULT_VALUE);
         /*  The user's preference for movie sorting is
             stored as an 'int' in sharedPreferences:
             rating (0), popular (1), or saved favorites (2).*/
-        mUserPreference = settings.getInt("pref", PREFERENCE_POPULAR);
+        mUserPreference = settings.getInt(PREFERENCE_KEY, PREFERENCE_POPULAR);
 
         //if the db hasn't been updated for awhile, update it
         remove_from_db();
@@ -90,10 +89,7 @@ public class MainActivity extends AppCompatActivity implements
         // Create layout manager and bind it to the recycler view
         mRecyclerView = findViewById(R.id.rvPosters);
         // Set the layout for the RecyclerView to be grid
-        // Provided by reviewer in review
-        int posterWidth = 342; // size in pixels (just a random size). You may use other values.
-        mLayoutManager =
-                new GridLayoutManager(this, calculateBestSpanCount(posterWidth));
+        mLayoutManager = new GridLayoutManager(this, 2);
         mRecyclerView.setLayoutManager(mLayoutManager);
         // Initialize the adapter and attach it to the RecyclerView
         mAdapter = new MyRecyclerViewAdapter(this);
@@ -107,38 +103,34 @@ public class MainActivity extends AppCompatActivity implements
     } //end of on create
 
 
-    //------------------------------Start of SaveInstance-------------------------------------------
-    //from https://stackoverflow.com/questions/28236390/recyclerview-store-restore-state-between-activities
-    protected void onSaveInstanceState(Bundle state) {
+    /////////////////////////////////// START SAVE INSTANCE ////////////////////////////////////////
+    @Override
+    public void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
-
-        // Save list state
         mListState = mLayoutManager.onSaveInstanceState();
         state.putParcelable(LIST_STATE_KEY, mListState);
     }
 
-
-    protected void onRestoreInstanceState(Bundle state) {
-        super.onRestoreInstanceState(state);
-
-        // Retrieve list state and list/item positions
-        if(state != null)
-            mListState = state.getParcelable(LIST_STATE_KEY);
+    @Override
+    public void onRestoreInstanceState(Bundle savedInstanceState){
+        super.onRestoreInstanceState(savedInstanceState);
+        if(savedInstanceState!=null){
+            mListState = savedInstanceState.getParcelable(LIST_STATE_KEY);
+        }
     }
 
     @Override
-    protected void onResume() {
+    protected void onResume(){
         super.onResume();
-
-        if (mListState != null) {
+        if (mListState!=null){
             mLayoutManager.onRestoreInstanceState(mListState);
         }
     }
-    //------------------------------End of SaveInstance-------------------------------------------
+    /////////////////////////////////// END OF SAVE INSTANCE ///////////////////////////////////////
 
 
-    ////////////////////////////////// Start Update DB Task //////////////////////////////
-    // Fetches json, parses, and sets the adapter
+    /////////////////////////////////// START UPDATE DB TASK ///////////////////////////////////////
+    // Fetches the json data for popular movies.
     class updateDbPopular extends AsyncTask<URL, Void, String> {
         // Do in background gets the json from The Movie Database
         @Override
@@ -149,31 +141,31 @@ public class MainActivity extends AppCompatActivity implements
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            //return the results to the onPostExecute method
+            // Return the results to the onPostExecute method
             return fetchResults;
         }
 
-        // On post execute task displays the json data
+        // On post execute task inserts the data.
         @Override
         protected void onPostExecute(String tmdbData) {
             try {
-                // Iterate through each movie in the mJsonString
                 int num_movies = JsonUtils.getNumberOfMovies(tmdbData);
-
+                // Get list of aspects a movie can have (title, rating, released, etc...)
                 Resources res = getResources();
                 String[] params = res.getStringArray(R.array.params);
-
+                // Iterate through each movie in the mJsonString
                 for (int movie_index = 0; movie_index < num_movies; movie_index++) {
                     String movie_json = JsonUtils.parseIndividualMovie(tmdbData, movie_index);
 
-                    List<String> movie_details_list = JsonUtils.parseDetailsFromMovie(movie_json, params);
+                    List<String> movie_details_list =
+                            JsonUtils.parseDetailsFromMovie(movie_json, params);
                     String mMovieTitle = movie_details_list.get(0);
                     String mMovieReleased = movie_details_list.get(1).substring(0, 4);
                     String mMovieRating = movie_details_list.get(2);
                     String mMoviePlot = movie_details_list.get(3);
                     String mMoviePosterPath = movie_details_list.get(4);
                     String mMovieId = movie_details_list.get(5);
-                    //fill content values with movie attributes
+                    // Fill content values with movie attributes
                     ContentValues cv = new ContentValues();
                     cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
                     cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
@@ -184,7 +176,7 @@ public class MainActivity extends AppCompatActivity implements
                     cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
                     cv.put(Contract.listEntry.COLUMN_CATEGORY, Integer.toString(PREFERENCE_POPULAR));
                     cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
-                    //insert the content values via a ContentResolver
+                    // Insert the content values via a ContentResolver
                     getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
                 }
             } catch (JSONException e) {
@@ -192,7 +184,7 @@ public class MainActivity extends AppCompatActivity implements
             }
         }
     }
-
+    // This is the same exact thing as update Popular.
     class updateDbTopRated extends AsyncTask<URL, Void, String> {
         // Do in background gets the json from The Movie Database
         @Override
@@ -227,7 +219,7 @@ public class MainActivity extends AppCompatActivity implements
                     String mMoviePlot = movie_details_list.get(3);
                     String mMoviePosterPath = movie_details_list.get(4);
                     String mMovieId = movie_details_list.get(5);
-                    //fill content values with movie attributes
+                    // Fill content values with movie attributes
                     ContentValues cv = new ContentValues();
                     cv.put(Contract.listEntry.COLUMN_MOVIE_TITLE, mMovieTitle);
                     cv.put(Contract.listEntry.COLUMN_MOVIE_PLOT, mMoviePlot);
@@ -238,7 +230,8 @@ public class MainActivity extends AppCompatActivity implements
                     cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
                     cv.put(Contract.listEntry.COLUMN_CATEGORY, Integer.toString(PREFERENCE_TOP_RATED));
                     cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
-                    //insert the content values via a ContentResolver
+                    // Insert the content values via a ContentResolver
+                    // Is the a database operation on the main thread? Sorry Layla.
                     getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
                 }
             } catch (JSONException e) {
@@ -255,31 +248,9 @@ public class MainActivity extends AppCompatActivity implements
         //delete single row
         getContentResolver().delete(uri, null, null);
     }
-    ////////////////////////////////// END Update DB Task //////////////////////////////
+    /////////////////////////////////// END OF UPDATE DB TASK //////////////////////////////////////
 
-    // Provided in review by reviewer
-    private int calculateBestSpanCount(int posterWidth) {
-        Display display = getWindowManager().getDefaultDisplay();
-        DisplayMetrics outMetrics = new DisplayMetrics();
-        display.getMetrics(outMetrics);
-        float screenWidth = outMetrics.widthPixels;
-        return Math.round(screenWidth / posterWidth);
-    }
-
-    //is there an internet connection?
-    public boolean is_connected() {
-        //https://stackoverflow.com/questions/5474089/how-to-check-currently-internet-connection-is-available-or-not-in-android
-        ConnectivityManager connectivityManager =
-                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (Objects.requireNonNull(connectivityManager).getNetworkInfo(ConnectivityManager.TYPE_MOBILE).getState() == NetworkInfo.State.CONNECTED ||
-                connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI).getState() == NetworkInfo.State.CONNECTED) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    ///////////////////////////////////START CURSOR LOADER METHODS//////////////////////////////////
+    ///////////////////////////////////START CURSOR LOADER METHODS /////////////////////////////////
     @NonNull
     @Override
     public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
@@ -320,14 +291,14 @@ public class MainActivity extends AppCompatActivity implements
                     Contract.listEntry.COLUMN_MOVIE_POSTER_PATH)));
         }
         mCursor = data;
-        mAdapter.swapCursor(movie_poster);
+        mAdapter.swapCursor(data);
     }
 
     @Override
     public void onLoaderReset(@NonNull Loader<Cursor> loader) {
         mAdapter.swapCursor(null);
     }
-////////////////////////////////////END CURSOR LOADER METHODS//////////////////////////////////
+    //////////////////////////////////// END CURSOR LOADER METHODS /////////////////////////////////
 
 
     // On click method sends the user to the DetailActivity activity
@@ -335,6 +306,10 @@ public class MainActivity extends AppCompatActivity implements
     public void onItemClick(int position) {
         Intent toDetail = new Intent(MainActivity.this, DetailActivity.class);
         mCursor.moveToPosition(position);
+        // This is SO UGLY! But, it's fast and easy.
+        /* To get here, a user has tapped on a movie. It's time to send the user and the
+           movie they selected to the detail activity.
+         */
         String title = mCursor.getString(mCursor
                 .getColumnIndex(Contract.listEntry.COLUMN_MOVIE_TITLE));
         String plot = mCursor.getString(mCursor
@@ -379,23 +354,28 @@ public class MainActivity extends AppCompatActivity implements
         //make shared preferences editor
         SharedPreferences settings = getApplicationContext().getSharedPreferences("LOG", 0);
         SharedPreferences.Editor editor = settings.edit();
-        if (itemThatWasClickedId == R.id.action_popular) {
-            editor.putInt("pref", PREFERENCE_POPULAR).commit();
-            URL tmdbUrl = NetworkUtils.buildUrl(PREFERENCE_POPULAR);
-            // Execute the data fetch task (this also displays the posters)
-            getSupportLoaderManager().initLoader(PREFERENCE_POPULAR, null, this);
-        }
-        if (itemThatWasClickedId == R.id.action_rating) {
-            editor.putInt("pref", PREFERENCE_TOP_RATED).commit();
-            URL tmdbUrl = NetworkUtils.buildUrl(PREFERENCE_TOP_RATED);
-            // Execute the data fetch task (this also displays the posters)
-            getSupportLoaderManager().initLoader(PREFERENCE_TOP_RATED, null, this);
-        }
-        if (itemThatWasClickedId == R.id.action_favorites) {
-            editor.putInt("pref", PREFERENCE_FAVORITES).commit();
-            // Load the movies from the database
-            getSupportLoaderManager().initLoader(PREFERENCE_FAVORITES, null, this);
-        }
+        int newPreference = PREFERENCE_POPULAR; // If default value is used, something broke.
+        if (itemThatWasClickedId == R.id.action_popular) newPreference = PREFERENCE_POPULAR;
+        if (itemThatWasClickedId == R.id.action_rating) newPreference = PREFERENCE_TOP_RATED;
+        if (itemThatWasClickedId == R.id.action_favorites) newPreference = PREFERENCE_FAVORITES;
+        editor.putInt(PREFERENCE_KEY, newPreference).commit();
+        // Initialize the loader to query and display new data.
+        getSupportLoaderManager().initLoader(newPreference, null, this);
         return super.onOptionsItemSelected(item);
     }
+
+
+    //is there an internet connection?
+    public boolean is_connected() {
+        //https://stackoverflow.com/questions/5474089/how-to-check-currently-internet-connection-is-available-or-not-in-android
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (Objects.requireNonNull(connectivityManager).getNetworkInfo(ConnectivityManager.TYPE_MOBILE).getState() == NetworkInfo.State.CONNECTED ||
+                connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI).getState() == NetworkInfo.State.CONNECTED) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 }

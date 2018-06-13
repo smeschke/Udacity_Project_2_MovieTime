@@ -36,8 +36,6 @@ import java.util.Objects;
 public class DetailActivity extends AppCompatActivity {
     //string for the url of the poster
     public String url_string;
-    //public string for the movie_json (gets passed to the db)
-    public String movie_json;
     //create a list for youtube trailer ids (url's to youtube)
     public List<String> mYoutubeIds;
     //this is the id of the trailer that the user is seeing
@@ -126,7 +124,8 @@ public class DetailActivity extends AppCompatActivity {
         }
 
         //load the post image (automatically cached earlier)
-        Picasso.with(getApplicationContext()).load(url_string + mMoviePosterPath).error(R.drawable.error).into(posterImageView);
+        Picasso.with(getApplicationContext()).load(url_string + mMoviePosterPath)
+                .error(R.drawable.error).into(posterImageView);
 
         //set the text views
         titleTextView.setText(mMovieTitle);
@@ -163,7 +162,7 @@ public class DetailActivity extends AppCompatActivity {
         cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
         cv.put(Contract.listEntry.COLUMN_CATEGORY, mMovieCategory);
         cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "no");
-        //insert the content values via a ContentResolver
+        // Update the content values via a ContentResolver
         getContentResolver().update(uri, cv, null, null);
 
         //tell the user that movie has been saved to favorites
@@ -191,7 +190,7 @@ public class DetailActivity extends AppCompatActivity {
         cv.put(Contract.listEntry.COLUMN_MOVIE_REVIEWS, "false");
         cv.put(Contract.listEntry.COLUMN_CATEGORY, mMovieCategory);
         cv.put(Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE, "yes");
-        //insert the content values via a ContentResolver
+        // Update the content values via a ContentResolver
         getContentResolver().update(uri, cv, null, null);
         //tell the user that movie has been saved to favorites
         Toast.makeText(this, mMovieTitle + " " + mMovieAddedMessage, Toast.LENGTH_SHORT).show();

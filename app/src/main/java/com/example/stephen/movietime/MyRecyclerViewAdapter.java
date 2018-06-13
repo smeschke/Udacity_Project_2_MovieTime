@@ -13,6 +13,7 @@ import android.widget.ImageView;
 import com.example.stephen.movietime.data.Contract;
 import com.squareup.picasso.Picasso;
 
+import java.util.ArrayList;
 import java.util.List;
 
 //TODO (3) extend RV View Holder (implement onCreate, onBind, and getItemCount)
@@ -29,19 +30,18 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     // Create MyRecyclerViewAdapter
     MyRecyclerViewAdapter(Context context){
         this.mInflater = LayoutInflater.from(context);
-        //this.mData = data;
         this.mContext = context;
     }
 
     //TODO (5) inflate
-    //inflates the cell layout from recyclerview_item.xml
+    // Inflates the cell layout from recyclerview_item.xml
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = mInflater.inflate(R.layout.recyclerview_item, parent, false);
         return new ViewHolder(view);
     }
-    //binds each poster to the cell
+    // Binds each poster to the cell
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         //get url for poster
@@ -57,9 +57,15 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     }
 
     // TODO (6) create swap cursor method to reset the data
-    // This is really a 'swapListString', because I am not passing a cursor.
-    void swapCursor(List<String> data) {
-        mData = data;
+    void swapCursor(Cursor data) {
+        // Move through the cursor and extract the movie poster urls.
+        List<String> movie_posters = new ArrayList<>();
+        for (int i = 0; i < data.getCount(); i++) {
+            data.moveToPosition(i);
+            movie_posters.add(data.getString(data.getColumnIndex(
+                    Contract.listEntry.COLUMN_MOVIE_POSTER_PATH)));
+        }
+        mData = movie_posters;
         notifyDataSetChanged();
     }
 
@@ -67,8 +73,8 @@ public class MyRecyclerViewAdapter extends RecyclerView.Adapter<MyRecyclerViewAd
     public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener{
         final ImageView imageView;
 
-        //set the click listener to the image view
-        //when a user clicks on an image --> something happens based on which image a user clicked on
+        // Set the click listener to the image view
+        // When a user clicks on an image --> something happens based on the image a user clicked.
         ViewHolder(View itemView){
             super(itemView);
             imageView = itemView.findViewById(R.id.movie_poster_image_view);
