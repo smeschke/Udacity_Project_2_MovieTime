@@ -9,8 +9,8 @@ import java.net.URL;
 import java.util.Scanner;
 
 class NetworkUtils {
-
-    public static String api_key = "api_key=594110145ddb52aad415dec046673010";
+    // Reviewer suggested I hide this in build.gradle, but I couldn't figure that out.
+    public static String api_key = "";
 
     public static URL buildUrl(int user_preference) {
         String BASE_URL = null;
@@ -23,7 +23,6 @@ class NetworkUtils {
         }
         URL url = null;
         try {
-
             url = new URL(BASE_URL);
         } catch (MalformedURLException e) {
             e.printStackTrace();
@@ -31,7 +30,7 @@ class NetworkUtils {
         return url;
     }
 
-    //builds a string for the url of the reviews json data
+    // Builds a string for the url of the reviews json data
     public static URL buildReviewsUrl(String movie_id) {
         String BASE_URL;
         BASE_URL = "http://api.themoviedb.org/3/movie/" +
@@ -45,7 +44,7 @@ class NetworkUtils {
         return url;
     }
 
-    //builds a string for the url of the reviews json data
+    // Builds a string for the url of the reviews json data
     public static URL buildTrailersUrl(String movie_id) {
         String BASE_URL;
         BASE_URL = "http://api.themoviedb.org/3/movie/" +
@@ -59,7 +58,7 @@ class NetworkUtils {
         return url;
     }
 
-    //builds url for the Youtube THUMBNAIL image
+    // Builds url for the Youtube THUMBNAIL image
     public static URL buildYoutubeUrl(String movie_id){
         String BASE_URL;
         BASE_URL = "https://img.youtube.com/vi/"+
@@ -73,6 +72,7 @@ class NetworkUtils {
         return url;
     }
 
+    // Use scanner to 'catch' the data.
     public static String getResponseFromHttpUrl(URL url) throws IOException {
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
         try {

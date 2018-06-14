@@ -41,17 +41,17 @@ public class MainActivity extends AppCompatActivity implements
     public final int PREFERENCE_POPULAR = 0;
     public final int PREFERENCE_TOP_RATED = 1;
     public final int PREFERENCE_FAVORITES = 2;
-    public final String LIST_STATE_KEY = "key";
     public final String PREFERENCE_KEY = "pref";
     public final String LOG_KEY = "log";
     public final String DB_HAS_BEEN_QUERIED_KEY = "dbQueryKey";
+    public final int LOADER_ID = 42;
+    public final int SETTINGS_MODE = 0;
     // Create a string of json to pass around
     public MyRecyclerViewAdapter mAdapter;
     public RecyclerView mRecyclerView;
     public int mUserPreference;
     public Cursor mCursor;
-    RecyclerView.LayoutManager mLayoutManager;
-    Parcelable mListState;
+    private RecyclerView.LayoutManager mLayoutManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity implements
 
         // Get access to the preferences
         SharedPreferences settings = getApplicationContext().
-                getSharedPreferences(LOG_KEY, PREFERENCE_POPULAR);
+                getSharedPreferences(LOG_KEY, SETTINGS_MODE);
         SharedPreferences.Editor editor = settings.edit();
         // Check if the DB has been fetched from the TMDB API
         boolean dbHasBeenQueried = settings.getBoolean(DB_HAS_BEEN_QUERIED_KEY, false);
@@ -75,9 +75,9 @@ public class MainActivity extends AppCompatActivity implements
         if (!dbHasBeenQueried && is_connected()) {
             editor.putBoolean(DB_HAS_BEEN_QUERIED_KEY, true).commit();
             remove_from_db(); // Clear the db
-            URL test = NetworkUtils.buildUrl(0);
+            URL test = NetworkUtils.buildUrl(PREFERENCE_POPULAR);
             new updateDbPopular().execute(test);
-            test = NetworkUtils.buildUrl(1);
+            test = NetworkUtils.buildUrl(PREFERENCE_TOP_RATED);
             new updateDbTopRated().execute(test);
         }
         // If there is no connection, tell the user to connect
@@ -88,6 +88,9 @@ public class MainActivity extends AppCompatActivity implements
         // Create layout manager and bind it to the recycler view
         mRecyclerView = findViewById(R.id.rvPosters);
         // Set the layout for the RecyclerView to be grid
+        /* Reviewer suggested a number of columns that is depended on the orientation
+           but that was too hard for to implement correctly (had problems with
+           maintaining scroll position)*/
         mLayoutManager = new GridLayoutManager(this, 2);
         mRecyclerView.setLayoutManager(mLayoutManager);
         // Initialize the adapter and attach it to the RecyclerView
@@ -96,44 +99,17 @@ public class MainActivity extends AppCompatActivity implements
         mAdapter.setClickListener(this);
         // Set adapter to mRecyclerView
         mRecyclerView.setAdapter(mAdapter);
-        // Initialize loader if there is no saved Instance State
-        getSupportLoaderManager().initLoader(mUserPreference, null, this);
+        // Initialize loader
+        getSupportLoaderManager().initLoader(LOADER_ID, null, this);
     } // End of on create
-
-
-    /////////////////////////////////// START SAVE INSTANCE ////////////////////////////////////////
-    // From https://stackoverflow.com/questions/28236390/recyclerview-store-restore-state-between-activities
-    @Override
-    public void onSaveInstanceState(Bundle state) {
-        mListState = mLayoutManager.onSaveInstanceState();
-        state.putParcelable(LIST_STATE_KEY, mListState);
-        super.onSaveInstanceState(state);
-    }
-
-    @Override
-    public void onRestoreInstanceState(Bundle savedInstanceState) {
-        if (savedInstanceState != null) {
-            mListState = savedInstanceState.getParcelable(LIST_STATE_KEY);
-        }
-        super.onRestoreInstanceState(savedInstanceState);
-    }
-
-    @Override
-    protected void onResume() {
-        if (mListState != null) {
-            mLayoutManager.onRestoreInstanceState(mListState);
-        }
-        getSupportLoaderManager().restartLoader(mUserPreference, null, this);
-        super.onResume();
-    }
-    /////////////////////////////////// END OF SAVE INSTANCE ///////////////////////////////////////
 
     ///////////////////////////////////START CURSOR LOADER METHODS /////////////////////////////////
     @NonNull
     @Override
     public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
+        int preference_id = mUserPreference;
         // Depending on the user's preference, and appropriate cursor is queried.
-        if (id == PREFERENCE_TOP_RATED) {
+        if (preference_id == PREFERENCE_TOP_RATED) {
             return new CursorLoader(this,
                     Contract.listEntry.CONTENT_URI,
                     null,
@@ -141,7 +117,7 @@ public class MainActivity extends AppCompatActivity implements
                     new String[]{Integer.toString(PREFERENCE_TOP_RATED)},
                     Contract.listEntry.COLUMN_TIMESTAMP);
         }
-        if (id == PREFERENCE_POPULAR) {
+        if (preference_id == PREFERENCE_POPULAR) {
             return new CursorLoader(this,
                     Contract.listEntry.CONTENT_URI,
                     null,
@@ -149,7 +125,7 @@ public class MainActivity extends AppCompatActivity implements
                     new String[]{Integer.toString(PREFERENCE_POPULAR)},
                     Contract.listEntry.COLUMN_TIMESTAMP);
         }
-        if (id == PREFERENCE_FAVORITES) {
+        if (preference_id == PREFERENCE_FAVORITES) {
             return new CursorLoader(this,
                     Contract.listEntry.CONTENT_URI,
                     null,
@@ -233,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemThatWasClickedId = item.getItemId();
         //make shared preferences editor
-        SharedPreferences settings = getApplicationContext().getSharedPreferences("LOG", 0);
+        SharedPreferences settings = getApplicationContext().getSharedPreferences("LOG", SETTINGS_MODE);
         SharedPreferences.Editor editor = settings.edit();
         int newPreference = PREFERENCE_POPULAR; // If default value is used, something broke.
         if (itemThatWasClickedId == R.id.action_popular) newPreference = PREFERENCE_POPULAR;
@@ -241,16 +217,16 @@ public class MainActivity extends AppCompatActivity implements
         if (itemThatWasClickedId == R.id.action_favorites) newPreference = PREFERENCE_FAVORITES;
         if (itemThatWasClickedId == R.id.action_refreshDB) {
             remove_from_db();
-            URL test = NetworkUtils.buildUrl(0);
+            URL test = NetworkUtils.buildUrl(PREFERENCE_POPULAR);
             new updateDbPopular().execute(test);
-            test = NetworkUtils.buildUrl(1);
+            test = NetworkUtils.buildUrl(PREFERENCE_TOP_RATED);
             new updateDbTopRated().execute(test);
         }
         editor.putInt(PREFERENCE_KEY, newPreference).commit();
         // Initialize the loader to query and display new data.
         mUserPreference = newPreference;
-        getSupportLoaderManager().destroyLoader(mUserPreference);
-        getSupportLoaderManager().initLoader(newPreference, null, this);
+        getSupportLoaderManager().restartLoader(LOADER_ID, null, this);
+        //getSupportLoaderManager().initLoader(LOADER_ID, null, this);
         return super.onOptionsItemSelected(item);
     }
     ///////////////////////////// END SETTINGS /////////////////////////////////////////////////////

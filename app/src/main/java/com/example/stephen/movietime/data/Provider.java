@@ -15,10 +15,10 @@ import static com.example.stephen.movietime.data.Contract.listEntry.TABLE_NAME;
 This is based on S09.05 - The Sunshine database lesson.
 */
 
-//Extend ContentProvider
+// Extend ContentProvider
 public class Provider extends ContentProvider {
 
-    //initialize mTaskDbHelper and context in onCreate
+    // Initialize mTaskDbHelper and context in onCreate
     private DbHelper mTaskDbHelper;
     @Override
     public boolean onCreate() {
@@ -62,7 +62,7 @@ public class Provider extends ContentProvider {
                 null,
                 null,
                 sortOrder);
-        // Notify - not sure what or who I am notifying here.
+        // Notify - not sure what/who/why I am notifying here.
         retCursor.setNotificationUri(getContext().getContentResolver(), uri);
         // Return cursor
         return retCursor;

@@ -49,6 +49,7 @@ public class DetailActivity extends AppCompatActivity {
     public String mMovieIsFavorite;
     public String mMovieCategory;
     public String mUniqueId;
+    public String mReviewBy;
     // Buttons
     Button mNextTrailerButton;
     Button mPreviousTrailerButton;
@@ -65,6 +66,7 @@ public class DetailActivity extends AppCompatActivity {
         url_string = res.getString(R.string.poster_url_prefix);
         mMovieAddedMessage = res.getString(R.string.movie_added);
         mMovieRemovedMessage = res.getString(R.string.movie_removed);
+        mReviewBy = res.getString(R.string.review_by);
 
         // Make some views
         TextView titleTextView = findViewById(R.id.title);
@@ -152,7 +154,7 @@ public class DetailActivity extends AppCompatActivity {
     }
 
 
-    //this method, called by a button click, removes the current movie from the database
+    // Removes the current movie from the favorites
     public void remove_from_favorites() {
         // Build uri with the movie json that needs to be deleted
         Uri uri = Contract.listEntry.CONTENT_URI;
@@ -163,16 +165,13 @@ public class DetailActivity extends AppCompatActivity {
         // Tell the user that movie has been saved to favorites
         Toast.makeText(this, mMovieTitle + " " + mMovieRemovedMessage, Toast.LENGTH_SHORT).show();
         // Change the visibility of the buttons
-
-        Button removeFromDbButton = findViewById(R.id.remove_button);
-        removeFromDbButton.setVisibility(View.INVISIBLE);
-        Button saveForLaterButton = findViewById(R.id.save_for_later_button);
-        saveForLaterButton.setVisibility(View.VISIBLE);
+        mRemoveButton.setVisibility(View.INVISIBLE);
+        mSaveButton.setVisibility(View.VISIBLE);
     }
 
-    //this method, called by a button click, saves the movie to the database
+    // Saves a movie to favorites
     public void save_for_later() {
-        String mUniqueIdUpdate = mMovieId + "2";
+        String mUniqueIdUpdate = mMovieId + "2"; // "2" is for favorites
         // Fill content values with movie attributes
         ContentValues cv = new ContentValues();
         cv.put(Contract.listEntry.COLUMN_UNIQUE_ID, mUniqueIdUpdate);
@@ -188,12 +187,11 @@ public class DetailActivity extends AppCompatActivity {
         // Insert the content values via a ContentResolver
         // Is the a database operation on the main thread? Sorry Layla.
         getContentResolver().insert(Contract.listEntry.CONTENT_URI, cv);
-        Button removeFromDbButton = findViewById(R.id.remove_button);
-        removeFromDbButton.setVisibility(View.VISIBLE);
-        Button saveForLaterButton = findViewById(R.id.save_for_later_button);
-        saveForLaterButton.setVisibility(View.INVISIBLE);
         // Tell the user a movie has been saved as favorite
         Toast.makeText(this, mMovieTitle + " " + mMovieAddedMessage, Toast.LENGTH_SHORT).show();
+        // Change the visibility of the buttons
+        mRemoveButton.setVisibility(View.VISIBLE);
+        mSaveButton.setVisibility(View.INVISIBLE);
 
     }
 
@@ -289,25 +287,9 @@ public class DetailActivity extends AppCompatActivity {
         // On post execute task displays the json data
         @Override
         protected void onPostExecute(String jsonReviewData) {
-            TextView tv = findViewById(R.id.movie_reviews);
-            String review_string = "";
-            JSONObject jsonObject = null;
-            try {
-                jsonObject = new JSONObject(jsonReviewData);
-
-                JSONArray results_array = jsonObject.getJSONArray("results");
-                // Iterate though the list of reviews
-                for (int i = 0; i < results_array.length(); i++) {
-                    JSONObject individual_movie = results_array.getJSONObject(i);
-                    String author = individual_movie.getString("author");
-                    review_string += "Review by " + author + "\n\n";
-                    String content = individual_movie.getString("content");
-                    review_string += content + "\n\n\n";
-                }
-            } catch (Exception e) {
-                Toast.makeText(DetailActivity.this, "Error while fetching reviews.", Toast.LENGTH_SHORT).show();
-            }
-            tv.setText(review_string);
+            String review_string = JsonUtils.parseReviews(jsonReviewData);
+            TextView reviewTextView = findViewById(R.id.movie_reviews);
+            if (review_string.length() > 0) reviewTextView.setText(review_string);
             mMovieReviews = review_string;
         }
     }
@@ -332,11 +314,12 @@ public class DetailActivity extends AppCompatActivity {
         protected void onPostExecute(String review_data) {
             try {
                 mYoutubeIds = JsonUtils.parseTrailers(review_data);
+                // If there is only one trailer, hide the next and back buttons
                 if (mYoutubeIds.size() == 1) {
                     mPreviousTrailerButton.setVisibility(View.INVISIBLE);
                     mNextTrailerButton.setVisibility(View.INVISIBLE);
                 }
-                draw_thumbnail(); //display image
+                draw_thumbnail(); // Display image
             } catch (Exception e) {
                 // Check for all types of errors
                 // If the source of the trailer is not youtube, the error is caught here

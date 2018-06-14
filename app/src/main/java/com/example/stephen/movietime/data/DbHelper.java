@@ -6,8 +6,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 public class DbHelper extends SQLiteOpenHelper {
 
-    //some of the code (like the onUpgrade method) is adapted from lesson T07.06 (guest list)
-
+    // Some of the code (like the onUpgrade method) is adapted from lesson T07.06 (guest list)
     private static final String DATABASE_NAME = "mydb.db";
     private static final int DATABASE_VERSION = 13;
 

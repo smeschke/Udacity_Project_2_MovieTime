@@ -3,37 +3,13 @@ package com.example.stephen.movietime.data;
 import android.net.Uri;
 import android.provider.BaseColumns;
 
-/*
-        This art is adapted from T09.01:
-
-        The above table structure looks something like the sample table below.
-        With the name of the table and columns on top, and potential contents in rows
-
-        Note: Because this implements BaseColumns, the _id column is generated automatically
-
-        tasks
-         - - - - - - - - - - - - - - - - -
-        | _id  |    description           |
-         - - - - - - - - - - - - - - - - -
-        |  1   |  movie_json for #1       |
-         - - - - - - - - - - - - - - - - -
-        |  2   |  movie_json for #1       |
-         - - - - - - - - - - - - - - - - -
-        .
-        .
-        .
-         - - - - - - - - - - - - - - - - -
-        | 42  |  movie_json for #42      |
-         - - - - - - - - - - - - - - - - -
-*/
-
 public class Contract {
 
-    //authority --> Which Content Provider to access?
+    // Authority --> Which Content Provider to access?
     public static final String AUTHORITY = "com.example.stephen.movietime";
-    //base content URI
+    // Base content URI
     public static final Uri BASE_CONTENT_URI = Uri.parse("content://" + AUTHORITY);
-    //paths for accessing data
+    // Paths for accessing data
     public static final String PATH_MOVIES = "movies";
 
     public static final class listEntry implements BaseColumns {
