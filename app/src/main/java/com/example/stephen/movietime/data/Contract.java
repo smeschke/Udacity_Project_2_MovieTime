@@ -42,6 +42,7 @@ public class Contract {
                 .appendPath(PATH_MOVIES).build();
 
         public static final String TABLE_NAME = "mylist";
+        public static final String COLUMN_UNIQUE_ID = "unique_movie_id";
         public static final String COLUMN_TIMESTAMP = "timestamp";
         public static final String COLUMN_CATEGORY = "category";
         public static final String COLUMN_MOVIE_TITLE = "movie_title";

@@ -27,37 +27,34 @@ public class Provider extends ContentProvider {
         return true;
     }
 
-    // Implement insert to handle requests to insert a single new row of data
+    // Insert a single new row of data
     @Override
     public Uri insert(@NonNull Uri uri, ContentValues values) {
-        // Get access to the task database (to write new data to)
+        // Access database
         final SQLiteDatabase db = mTaskDbHelper.getWritableDatabase();
-        //Uri to be returned
+        // Uri to be returned
         Uri returnUri;
-        //insert the row
+        // Insert the row
         long id = db.insert(TABLE_NAME, null, values);
-        //update Uri's
+        // Update Uri's
         if (id > 0) {
             returnUri = ContentUris.withAppendedId(
                     Contract.listEntry.CONTENT_URI, id);
         } else {
             throw new android.database.SQLException("Failed to insert row into " + uri);
         }
-        //notify
+        // Notify
         getContext().getContentResolver().notifyChange(uri, null);
-        // Return constructed uri (this points to the newly inserted row of data)
+        // Return uri that points to newly inserted row
         return returnUri;
     }
 
-    // query method
     @Override
     public Cursor query(@NonNull Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
-        /* What! Is something missing? Where is the URIMatcher?
-        *  There is no URIMatcher, because the whole DB is returned every time.*/
-        // access db
+        // Access db
         final SQLiteDatabase db = mTaskDbHelper.getReadableDatabase();
-        // query database
+        // Query database
         Cursor retCursor = db.query(TABLE_NAME,
                 projection,
                 selection,
@@ -65,55 +62,48 @@ public class Provider extends ContentProvider {
                 null,
                 null,
                 sortOrder);
-        // notify
+        // Notify - not sure what or who I am notifying here.
         retCursor.setNotificationUri(getContext().getContentResolver(), uri);
-        // return cursor
+        // Return cursor
         return retCursor;
     }
 
-    // delete a single row of data
+    // Delete - either a single row, or all popular and top rated movies
     @Override
     public int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
-        //create new int that describes the number of tasks deleted
+        // # of tasks deleted
         int moviesDeleted = 0;
-        // access db
+        // Access db
         final SQLiteDatabase db = mTaskDbHelper.getWritableDatabase();
-        // get movie_json
+        // Get movie_json
         String movie_id = uri.getPathSegments().get(1);
         /* Movies from TMDB have a movie_id of more than 6 characters,
-           I need a 'delete all option', so instead of using a URI matcher,
+           I need a 'delete all non-favorites option', so instead of using a URI matcher,
            I just pass a really short movie_id (<3) to delete all.
          */
         if (movie_id.length()<3) {
             moviesDeleted = db.delete(TABLE_NAME,
-                    null,
-                    null);
+                    "category!=?",
+                    new String[]{"2"});
         }
         else{
             moviesDeleted = db.delete(TABLE_NAME,
-                    "movie_id=?",
+                    "unique_movie_id=?",
                     new String[]{movie_id});
         }
-        // return the number of tasks deleted
+        // Return the number of tasks deleted
         getContext().getContentResolver().notifyChange(uri, null);
         return moviesDeleted;
     }
 
-    //not used
+    // Not used
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {
-        final SQLiteDatabase db = mTaskDbHelper.getWritableDatabase();
-        String movie_id = uri.getPathSegments().get(1);
-        int moviesUpdated = db.update(TABLE_NAME,
-                values,
-                "movie_id=?",
-                new String[]{movie_id});
-        getContext().getContentResolver().notifyChange(uri, null);
-        return moviesUpdated;
+        throw new UnsupportedOperationException("Not implemented");
     }
 
-    //not used
+    // Not used
     @Override
     public String getType(@NonNull Uri uri) {
         throw new UnsupportedOperationException("Not implemented");

@@ -9,7 +9,7 @@ public class DbHelper extends SQLiteOpenHelper {
     //some of the code (like the onUpgrade method) is adapted from lesson T07.06 (guest list)
 
     private static final String DATABASE_NAME = "mydb.db";
-    private static final int DATABASE_VERSION = 10;
+    private static final int DATABASE_VERSION = 13;
 
     public DbHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -26,6 +26,7 @@ public class DbHelper extends SQLiteOpenHelper {
                         Contract.listEntry.COLUMN_MOVIE_REVIEWS + " TEXT NOT NULL, " +
                         Contract.listEntry.COLUMN_MOVIE_POSTER_PATH + " TEXT NOT NULL, " +
                         Contract.listEntry.COLUMN_MOVIE_ID + " TEXT NOT NULL, " +
+                        Contract.listEntry.COLUMN_UNIQUE_ID + " TEXT NOT NULL, " +
                         Contract.listEntry.COLUMN_MOVIE_RELEASED + " TEXT NOT NULL, " +
                         Contract.listEntry.COLUMN_CATEGORY + " TEXT NOT NULL, " +
                         Contract.listEntry.COLUMN_MOVIE_IS_FAVORITE + " TEXT NOT NULL, " +

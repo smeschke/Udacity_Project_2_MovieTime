@@ -16,4 +16,9 @@
         android:orderInCategory="3"
         app:showAsAction="never"
         android:title="@string/switch_to_favorites"/>
+    <item
+        android:id="@+id/action_refreshDB"
+        android:orderInCategory="4"
+        app:showAsAction="never"
+        android:title="@string/refresh_db"/>
 </menu>
